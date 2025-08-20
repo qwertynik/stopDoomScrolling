@@ -5,113 +5,67 @@ let blocked = false;
 let timerElement;
 let showTimer = true;
 
-// Create timer element
 function createTimer() {
   if (timerElement) return;
   timerElement = document.createElement("div");
   timerElement.id = "doomscroll-timer";
-  timerElement.style.position = "fixed";
-  timerElement.style.top = "10px";
-  timerElement.style.right = "10px";
-  timerElement.style.backgroundColor = "rgba(0,0,0,0.7)";
-  timerElement.style.color = "white";
-  timerElement.style.padding = "8px 12px";
-  timerElement.style.borderRadius = "8px";
-  timerElement.style.fontSize = "16px";
-  timerElement.style.zIndex = "999999";
-  document.body.appendChild(timerElement);
+  Object.assign(timerElement.style, {
+    position: "fixed", top: "10px", right: "10px",
+    backgroundColor: "rgba(0,0,0,0.8)", color: "white",
+    padding: "10px 14px", borderRadius: "10px", fontSize: "16px",
+    fontWeight: "600", zIndex: 999999
+  });
+  timerElement.textContent = "00:00";
+  document.documentElement.appendChild(timerElement);
 }
 
-// Update timer display
 function updateTimer() {
-  let elapsed = Math.floor((Date.now() - startTime) / 1000);
-  let minutes = Math.floor(elapsed / 60);
-  let seconds = elapsed % 60;
-  if (timerElement) {
-    timerElement.textContent = minutes + ":" + (seconds < 10 ? "0" : "") + seconds;
-  }
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const m = String(Math.floor(elapsed / 60)).padStart(2, "0");
+  const s = String(elapsed % 60).padStart(2, "0");
+  if (timerElement) timerElement.textContent = `${m}:${s}`;
 }
 
-// Remove timer
-function removeTimer() {
-  if (timerElement) {
-    timerElement.remove();
-    timerElement = null;
-  }
-}
+function removeTimer() { if (timerElement) { timerElement.remove(); timerElement=null; } }
 
-// Block modal
 function showBlockModal(messages) {
   blocked = true;
   removeTimer();
-  let modal = document.createElement("div");
-  modal.style.position = "fixed";
-  modal.style.top = 0;
-  modal.style.left = 0;
-  modal.style.width = "100%";
-  modal.style.height = "100%";
-  modal.style.backgroundColor = "white";
-  modal.style.display = "flex";
-  modal.style.flexDirection = "column";
-  modal.style.alignItems = "center";
-  modal.style.justifyContent = "center";
-  modal.style.zIndex = "999999";
-  modal.style.fontSize = "24px";
-  modal.style.fontFamily = "sans-serif";
-  let message = messages[Math.floor(Math.random() * messages.length)];
-  let text = document.createElement("p");
-  text.textContent = message;
-  let button = document.createElement("button");
-  button.textContent = "Continue";
-  button.style.marginTop = "20px";
-  button.style.padding = "10px 20px";
-  button.style.fontSize = "18px";
-  button.onclick = () => {
-    modal.remove();
-    startTime = Date.now();
-    blocked = false;
-    if (showTimer) {
-      createTimer();
-    }
-  };
-  modal.appendChild(text);
-  modal.appendChild(button);
-  document.body.appendChild(modal);
+  const overlay = document.createElement("div");
+  Object.assign(overlay.style, {
+    position:"fixed", inset:"0", backgroundColor:"rgba(255,255,255,0.98)",
+    display:"grid", placeItems:"center", zIndex:1000000,
+    fontFamily:"system-ui,Arial,sans-serif"
+  });
+  const card=document.createElement("div");
+  Object.assign(card.style,{background:"#fff",padding:"24px",borderRadius:"14px",
+    boxShadow:"0 10px 40px rgba(0,0,0,0.15)",maxWidth:"520px",textAlign:"center"});
+  const p=document.createElement("p");
+  p.textContent=messages.length?messages[Math.floor(Math.random()*messages.length)]:"Do you really want to scroll further?";
+  p.style.fontSize="18px";p.style.margin="0 0 16px 0";
+  const btn=document.createElement("button");
+  btn.textContent="Yes, continue";
+  Object.assign(btn.style,{padding:"10px 16px",borderRadius:"10px",border:"1px solid #2b6cb0",
+    background:"#3182ce",color:"#fff",cursor:"pointer"});
+  btn.onclick=()=>{overlay.remove();startTime=Date.now();blocked=false;if(showTimer)createTimer();};
+  card.appendChild(p);card.appendChild(btn);overlay.appendChild(card);document.documentElement.appendChild(overlay);
 }
 
-// Initialize
-chrome.storage.sync.get(["trackedSites", "blockTime", "messages", "showTimer"], (data) => {
-  let host = window.location.hostname;
-  if (!data.trackedSites || !data.trackedSites.some(site => host.includes(site))) return;
-
-  showTimer = data.showTimer !== false;
-
-  if (showTimer) {
-    createTimer();
-    timerInterval = setInterval(updateTimer, 1000);
-  }
-
-  setInterval(() => {
-    if (!blocked) {
-      let elapsedMinutes = (Date.now() - startTime) / 60000;
-      if (elapsedMinutes >= data.blockTime) {
-        showBlockModal(data.messages || ["Do you really want to scroll further?"]);
-      }
-    }
-  }, 1000);
+chrome.storage.sync.get(["trackedSites","blockTime","messages","showTimer"], (data)=>{
+  const host=location.hostname;
+  if (!data.trackedSites.some(site=>host.includes(site))) return;
+  showTimer=data.showTimer!==false;
+  if(showTimer){createTimer();timerInterval=setInterval(updateTimer,1000);}
+  setInterval(()=>{
+    if(blocked)return;
+    const elapsedMinutes=(Date.now()-startTime)/60000;
+    if(elapsedMinutes>=data.blockTime){showBlockModal(data.messages||[]);}
+  },1000);
 });
-
-// React to toggle changes
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === "toggleTimer") {
-    showTimer = message.show;
-    if (showTimer) {
-      createTimer();
-      if (!timerInterval) timerInterval = setInterval(updateTimer, 1000);
-    } else {
-      removeTimer();
-      clearInterval(timerInterval);
-      timerInterval = null;
-    }
+chrome.runtime.onMessage.addListener((message)=>{
+  if(message.type==="toggleTimer"){
+    showTimer=message.show;
+    if(showTimer){createTimer();if(!timerInterval)timerInterval=setInterval(updateTimer,1000);}
+    else{removeTimer();clearInterval(timerInterval);timerInterval=null;}
   }
 });
