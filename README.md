@@ -1,1 +1,1 @@
-# stopDoomScrolling
+# Stop Doom Scrolling

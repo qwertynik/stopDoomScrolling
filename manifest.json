@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Doomscroll Blocker",
+  "version": "1.2",
+  "description": "Blocks doomscrolling after 20 minutes with a confirmation modal. Includes optional floating timer.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ]
+    }
+  ]
+}
