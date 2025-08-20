@@ -4,6 +4,8 @@ let timerInterval;
 let blocked = false;
 let timerElement;
 let showTimer = true;
+let lastScrollTime = Date.now();
+let idleCheckInterval;
 
 function createTimer() {
   if (timerElement) return;
@@ -56,12 +58,29 @@ chrome.storage.sync.get(["trackedSites","blockTime","messages","showTimer"], (da
   if (!data.trackedSites.some(site=>host.includes(site))) return;
   showTimer=data.showTimer!==false;
   if(showTimer){createTimer();timerInterval=setInterval(updateTimer,1000);}
+
+  // Check limit once per second
   setInterval(()=>{
     if(blocked)return;
     const elapsedMinutes=(Date.now()-startTime)/60000;
-    if(elapsedMinutes>=data.blockTime){showBlockModal(data.messages||[]);}
+    if(elapsedMinutes>=(data.blockTime||20)){showBlockModal(data.messages||[]);}
+  },1000);
+
+  // Track scrolling activity
+  window.addEventListener("scroll", ()=>{
+    lastScrollTime=Date.now();
+  });
+
+  // Reset timer if idle (no scroll for >10s)
+  idleCheckInterval=setInterval(()=>{
+    if(Date.now()-lastScrollTime>10000){
+      startTime=Date.now();
+      if(timerElement) timerElement.textContent="00:00";
+      lastScrollTime=Date.now();
+    }
   },1000);
 });
+
 chrome.runtime.onMessage.addListener((message)=>{
   if(message.type==="toggleTimer"){
     showTimer=message.show;
@@ -69,3 +88,23 @@ chrome.runtime.onMessage.addListener((message)=>{
     else{removeTimer();clearInterval(timerInterval);timerInterval=null;}
   }
 });
+
+
+// --- Scroll inactivity reset (10s) ---
+let __dsb_inactivityTimeout = null;
+function __dsb_markScrollActivity() {
+  if (__dsb_inactivityTimeout) clearTimeout(__dsb_inactivityTimeout);
+  __dsb_inactivityTimeout = setTimeout(() => {
+    // If no scroll for 10s, reset the session timer
+    startTime = Date.now();
+    if (timerElement) {
+      timerElement.textContent = "00:00";
+    }
+  }, 10000);
+}
+// Listen to scroll-like events
+window.addEventListener("scroll", __dsb_markScrollActivity, { passive: true });
+window.addEventListener("wheel", __dsb_markScrollActivity, { passive: true });
+window.addEventListener("touchmove", __dsb_markScrollActivity, { passive: true });
+// Initialize inactivity tracker once at load
+__dsb_markScrollActivity();
