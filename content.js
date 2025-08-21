@@ -108,3 +108,39 @@ window.addEventListener("wheel", __dsb_markScrollActivity, { passive: true });
 window.addEventListener("touchmove", __dsb_markScrollActivity, { passive: true });
 // Initialize inactivity tracker once at load
 __dsb_markScrollActivity();
+
+
+// === DSB Tab Reset Hooks (robust) ===
+(function(){
+  if (window.__DSB_TAB_RESET_GUARD__) return;
+  window.__DSB_TAB_RESET_GUARD__ = true;
+
+  function dsbReset(reason){
+    try{
+      // Reset the session timer and UI
+      if (typeof startTime !== "undefined") startTime = Date.now();
+      if (typeof blocked !== "undefined") blocked = false;
+      if (typeof timerElement !== "undefined" && timerElement) {
+        try { timerElement.textContent = "00:00"; } catch(e){}
+      }
+      // If there is any per-second ticker, restarting is owned by original code.
+      // We keep this reset lightweight and idempotent.
+      // console.debug("[DSB] reset due to", reason);
+    }catch(e){/* no-op */}
+  }
+
+  // Fire reset on both hide and show (some pages miss the hidden event due to throttling)
+  document.addEventListener("visibilitychange", () => {
+    dsbReset(document.hidden ? "visibility_hidden" : "visibility_visible");
+  }, { passive: true });
+
+  // Also catch window focus/blur which are more reliable across platforms
+  window.addEventListener("blur", () => dsbReset("window_blur"), { passive: true });
+  window.addEventListener("focus", () => dsbReset("window_focus"), { passive: true });
+
+  // Handle bfcache restores where visibilitychange might not fire as expected
+  window.addEventListener("pageshow", (e) => {
+    if (e.persisted) dsbReset("pageshow_bfcache");
+  }, { passive: true });
+})();
+// === End DSB Tab Reset Hooks ===
