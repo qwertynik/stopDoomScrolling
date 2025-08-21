@@ -144,3 +144,137 @@ __dsb_markScrollActivity();
   }, { passive: true });
 })();
 // === End DSB Tab Reset Hooks ===
+
+
+// ==== DSB: Draggable Timer Patch ====
+(function(){
+  if (window.__DSB_DRAG_TIMER_GUARD__) return;
+  window.__DSB_DRAG_TIMER_GUARD__ = true;
+
+  let __dsb_drag_applied = false;
+
+  function __dsb_applyDragBehavior() {
+    if (typeof timerElement === "undefined" || !timerElement) return;
+    if (timerElement.__dsbDragBound) { __dsb_drag_applied = true; return; }
+
+    // Visual affordance for drag
+    timerElement.style.cursor = "grab";
+    timerElement.style.userSelect = "none";
+    timerElement.style.touchAction = "none"; // better touch drag
+    timerElement.style.zIndex = String(Math.max(999999999, parseInt(timerElement.style.zIndex || "0", 10)));
+
+    // Restore saved position if available
+    try {
+      chrome.storage.sync.get({ timerPos: null }, (res) => {
+        const pos = res && res.timerPos;
+        if (pos && Number.isFinite(pos.left) && Number.isFinite(pos.top)) {
+          timerElement.style.left = pos.left + "px";
+          timerElement.style.top = pos.top + "px";
+          timerElement.style.right = "";
+          timerElement.style.bottom = "";
+        }
+      });
+    } catch (e) {}
+
+    let dragging = false;
+    let startX = 0, startY = 0;
+    let origLeft = 0, origTop = 0;
+    let latestLeft = 0, latestTop = 0;
+
+    function clamp(val, min, max){ return Math.min(max, Math.max(min, val)); }
+
+    function onDown(clientX, clientY) {
+      dragging = true;
+      timerElement.style.cursor = "grabbing";
+
+      const rect = timerElement.getBoundingClientRect();
+      origLeft = rect.left;
+      origTop = rect.top;
+      startX = clientX;
+      startY = clientY;
+
+      // Ensure we're using left/top coordinates while dragging
+      timerElement.style.left = rect.left + "px";
+      timerElement.style.top = rect.top + "px";
+      timerElement.style.right = "";
+      timerElement.style.bottom = "";
+
+      document.addEventListener("mousemove", onMouseMove, true);
+      document.addEventListener("mouseup", onMouseUp, true);
+      document.addEventListener("touchmove", onTouchMove, { passive: false });
+      document.addEventListener("touchend", onTouchEnd, true);
+    }
+
+    function onMouseDown(e){
+      // Left button only
+      if (e.button !== 0) return;
+      e.preventDefault();
+      onDown(e.clientX, e.clientY);
+    }
+
+    function onTouchStart(e){
+      if (!e.touches || !e.touches.length) return;
+      const t = e.touches[0];
+      onDown(t.clientX, t.clientY);
+      e.preventDefault();
+    }
+
+    function onMove(clientX, clientY){
+      if (!dragging) return;
+      const dx = clientX - startX;
+      const dy = clientY - startY;
+      const rect = timerElement.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+      latestLeft = clamp(origLeft + dx, 0, window.innerWidth - w);
+      latestTop  = clamp(origTop + dy, 0, window.innerHeight - h);
+      timerElement.style.left = latestLeft + "px";
+      timerElement.style.top  = latestTop + "px";
+    }
+
+    function onMouseMove(e){
+      e.preventDefault();
+      onMove(e.clientX, e.clientY);
+    }
+
+    function onTouchMove(e){
+      if (!e.touches || !e.touches.length) return;
+      const t = e.touches[0];
+      onMove(t.clientX, t.clientY);
+      e.preventDefault();
+    }
+
+    function finishDrag(){
+      dragging = false;
+      timerElement.style.cursor = "grab";
+      // Persist position
+      try {
+        chrome.storage.sync.set({ timerPos: { left: latestLeft, top: latestTop } });
+      } catch (e) {}
+      document.removeEventListener("mousemove", onMouseMove, true);
+      document.removeEventListener("mouseup", onMouseUp, true);
+      document.removeEventListener("touchmove", onTouchMove, true);
+      document.removeEventListener("touchend", onTouchEnd, true);
+    }
+
+    function onMouseUp(e){ e.preventDefault(); finishDrag(); }
+    function onTouchEnd(e){ e.preventDefault(); finishDrag(); }
+
+    // Bind handlers
+    timerElement.addEventListener("mousedown", onMouseDown);
+    timerElement.addEventListener("touchstart", onTouchStart, { passive: false });
+
+    // Mark bound
+    timerElement.__dsbDragBound = true;
+    __dsb_drag_applied = true;
+  }
+
+  // Try until timerElement exists, then stop checking
+  const __dsb_check = setInterval(() => {
+    try {
+      __dsb_applyDragBehavior();
+      if (__dsb_drag_applied) clearInterval(__dsb_check);
+    } catch(e){ /* ignore */ }
+  }, 250);
+})();
+// ==== End Draggable Timer Patch ====
