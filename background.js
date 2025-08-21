@@ -1,6 +1,6 @@
 chrome.runtime.onInstalled.addListener(() => {
     chrome.storage.sync.set({
-        trackedSites: ["x.com", "linkedin.com", "instagram.com"],
+        trackedSites: ["x.com", "linkedin.com", "instagram.com", "facebook.com", "youtube.com"],
         blockTime: 20,
         messages: [
             "Do you want to continue scrolling?",
