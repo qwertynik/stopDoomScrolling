@@ -45,6 +45,7 @@ function showBlockModal(messages) {
   const p=document.createElement("p");
   p.textContent=messages.length?messages[Math.floor(Math.random()*messages.length)]:"Do you really want to scroll further?";
   p.style.fontSize="18px";p.style.margin="0 0 16px 0";
+  p.style.color="black";
   const btn=document.createElement("button");
   btn.textContent="Yes, continue";
   Object.assign(btn.style,{padding:"10px 16px",borderRadius:"10px",border:"1px solid #2b6cb0",
