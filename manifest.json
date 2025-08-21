@@ -3,6 +3,7 @@
   "name": "Doomscroll Blocker",
   "version": "1.2",
   "description": "Blocks doomscrolling after a set time with a confirmation modal. Includes an optional floating timer toggle.",
+  "permissions": ["storage"],
   "background": {
     "service_worker": "background.js"
   },
