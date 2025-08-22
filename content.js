@@ -6,6 +6,7 @@ let timerElement;
 let showTimer = true;
 let lastScrollTime = Date.now();
 let idleCheckInterval;
+let __dsb_allowedHost = null;
 
 function createTimer() {
   if (timerElement) return;
@@ -56,7 +57,8 @@ function showBlockModal(messages) {
 
 chrome.storage.sync.get(["trackedSites","blockTime","messages","showTimer"], (data)=>{
   const host=location.hostname;
-  if (!data.trackedSites.some(site=>host.includes(site))) return;
+  __dsb_allowedHost = Array.isArray(data.trackedSites) && data.trackedSites.some(site => site && host.includes(site));
+  if (!__dsb_allowedHost) return;
   showTimer=data.showTimer!==false;
   if(showTimer){createTimer();timerInterval=setInterval(updateTimer,1000);}
 
@@ -82,13 +84,29 @@ chrome.storage.sync.get(["trackedSites","blockTime","messages","showTimer"], (da
   },1000);
 });
 
+
 chrome.runtime.onMessage.addListener((message)=>{
   if(message.type==="toggleTimer"){
-    showTimer=message.show;
-    if(showTimer){createTimer();if(!timerInterval)timerInterval=setInterval(updateTimer,1000);}
-    else{removeTimer();clearInterval(timerInterval);timerInterval=null;}
+    const proceed = () => {
+      if (!__dsb_allowedHost) { removeTimer(); clearInterval(timerInterval); timerInterval=null; return; }
+      showTimer=message.show;
+      if(showTimer){createTimer(); if(!timerInterval) timerInterval=setInterval(updateTimer,1000);}
+      else{removeTimer(); clearInterval(timerInterval); timerInterval=null;}
+    };
+    if (__dsb_allowedHost === null) {
+      try {
+        chrome.storage.sync.get(["trackedSites"], (d) => {
+          const host = location.hostname;
+          __dsb_allowedHost = Array.isArray(d.trackedSites) && d.trackedSites.some(site => site && host.includes(site));
+          proceed();
+        });
+      } catch(e){ proceed(); }
+    } else {
+      proceed();
+    }
   }
 });
+
 
 
 // --- Scroll inactivity reset (10s) ---
